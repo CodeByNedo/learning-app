@@ -1,0 +1,52 @@
+:root{--scroll-thumb:#b7c2b160;--scroll-hover:#99aa91;scrollbar-gutter:stable}
+*{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
+::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:20px;border:2px solid transparent;background-clip:padding-box}::-webkit-scrollbar-thumb:hover{background-color:var(--scroll-hover)}::-webkit-scrollbar-corner{background:transparent}
+#theme{font:inherit;font-size:13px;color:#355444;background:#fff;border:1px solid #d3ddcf;border-radius:8px;padding:9px 12px;margin-right:10px}
+:root[data-theme=dark]{background:#11161c;color:#e8edf3;--scroll-thumb:#a9b8ca50;--scroll-hover:#93a6bb;color-scheme:dark}
+[data-theme=dark] .panel,[data-theme=dark] .grid,[data-theme=dark] .card,[data-theme=dark] #detail,[data-theme=dark] dialog,[data-theme=dark] .finish-card{background:#1c242d;color:#e8edf3;border-color:#35414e}
+[data-theme=dark] .activity-panel{background:#1c242d}
+[data-theme=dark] .stats,[data-theme=dark] .day-summary,[data-theme=dark] .welcome{background:#24313b;border-color:#3b4a58}
+[data-theme=dark] .stats div+div,[data-theme=dark] .day-summary>div+div{border-color:#3b4a58}
+[data-theme=dark] .muted,[data-theme=dark] .stats span,[data-theme=dark] .local,[data-theme=dark] .eyebrow,[data-theme=dark] footer,[data-theme=dark] .session small,[data-theme=dark] .next-preview,[data-theme=dark] .subject-row small,[data-theme=dark] .list-heading,[data-theme=dark] .week-range,[data-theme=dark] .chart-hint,[data-theme=dark] .chart-date,[data-theme=dark] .day-year,[data-theme=dark] .day-stats-note,[data-theme=dark] .day-session time,[data-theme=dark] .last-study small,[data-theme=dark] .last-study-subject,[data-theme=dark] .day-summary span,[data-theme=dark] .day-subject-card small,[data-theme=dark] .subject-appearance small{color:#b3bfcd}
+[data-theme=dark] input,[data-theme=dark] select,[data-theme=dark] textarea,[data-theme=dark] #theme,[data-theme=dark] #language,[data-theme=dark] .subject-tools select,[data-theme=dark] .subject-tools input,[data-theme=dark] .finish-card textarea{background:#151d26;color:#e8edf3;border-color:#48596b}
+[data-theme=dark] input::placeholder,[data-theme=dark] textarea::placeholder{color:#97a7ba}
+[data-theme=dark] .secondary,[data-theme=dark] .activity-count,[data-theme=dark] .app-tabs a:hover{background:#2e3b49;color:#d8e4ec}
+[data-theme=dark] .app-tabs a{color:#b3bfcd}
+[data-theme=dark] .app-tabs a.selected,[data-theme=dark] button:not(.secondary):not(.subject-name):not(.chart-day):not(.danger),[data-theme=dark] .button-link{background:#3f785f;color:#fff}
+[data-theme=dark] .subject-name,[data-theme=dark] .text-link{color:#d8e4ec}
+[data-theme=dark] .subject-row:hover,[data-theme=dark] .day-subject-card{background:#26323e;border-color:#3b4a58}
+[data-theme=dark] .session,[data-theme=dark] .subject-row+.subject-row,[data-theme=dark] .distribution,[data-theme=dark] .day-session,[data-theme=dark] .day-stats-note,[data-theme=dark] .last-study,[data-theme=dark] .app-tabs,[data-theme=dark] .history-filters,[data-theme=dark] .study-mode nav{border-color:#35414e}
+[data-theme=dark] .badge{background:#3c3526;color:#efcf91}
+[data-theme=dark] .chart-label,[data-theme=dark] .chart-value{color:#c0cedb}
+[data-theme=dark] .chart-column{border-color:#3b4a58}
+[data-theme=dark] button.chart-day.is-today,[data-theme=dark] button.chart-day:hover:not(:disabled){background:#2d423e;border-color:#577b68}
+[data-theme=dark] .chart-column i,[data-theme=dark] .bar{background:#739f8a}
+[data-theme=dark] .is-today .chart-column i{background:#a1d5b9}
+[data-theme=dark] .track{background:#35414e}
+[data-theme=dark] dialog::backdrop{background:#0009}
+[data-theme=dark] .study-mode #active{background:#202e37;color:#e8edf3;border-color:#405867}
+[data-theme=dark] .study-mode #active .muted,[data-theme=dark] .study-mode #active .eyebrow,[data-theme=dark] .focus-caption,[data-theme=dark] .focus-checkpoint{color:#bacbd4!important}
+[data-theme=dark] .finish-duration{color:#a1d5b9}
+[data-theme=dark] #study-banner{background:#244539;border-color:#4d7963}
+[data-theme=dark] #study-banner .button-link{background:#d2eadc;color:#183a2a}
+[data-theme=dark] #message{background:#d2eadc;color:#183a2a}
+@media(max-width:580px){#theme,#language{font-size:11px;padding:8px}#theme{margin-left:auto;margin-right:7px}#language{margin-left:0}}
+
+.theme-buttons{display:flex;align-items:center;gap:3px;padding:3px;background:#eaf0e5;border:1px solid #dce4d5;border-radius:11px;margin-right:12px}.theme-buttons .theme-button{display:grid;place-items:center;width:34px;height:32px;padding:0;border-radius:7px;background:transparent;color:#87947f;box-shadow:none}.theme-buttons .theme-button[aria-pressed=true]{background:#fff;color:#355444;box-shadow:0 1px 4px #243d3415}.theme-buttons .theme-button:hover{color:#295a45;filter:none}.theme-buttons .theme-button:focus-visible{outline:2px solid #d6a651;outline-offset:2px}[data-theme=dark] .theme-buttons{background:#151d26;border-color:#35414e}[data-theme=dark] .theme-buttons .theme-button{background:transparent!important;color:#a3b3c5}[data-theme=dark] .theme-buttons .theme-button[aria-pressed=true]{background:#36495b!important;color:#eef4fc}[data-theme=dark] .theme-buttons .theme-button:hover{color:white}@media(max-width:580px){.theme-buttons{margin-left:auto;margin-right:8px}.theme-buttons .theme-button{width:29px;height:29px}}
+
+[data-theme=dark] #archive-tools{background:#24313b;border-color:#3b4a58}
+
+/* Neutral surfaces separate hierarchy; green is reserved for actions and activity. */
+[data-theme=dark] .panel,[data-theme=dark] .grid,[data-theme=dark] dialog,[data-theme=dark] .finish-card{box-shadow:0 8px 26px #00000018}
+[data-theme=dark] h1,[data-theme=dark] h2,[data-theme=dark] h3,[data-theme=dark] .stats strong,[data-theme=dark] .day-summary strong{color:#f1f5f9}
+[data-theme=dark] .stats{background:#23303b;border-color:#405061}
+[data-theme=dark] .stats span{color:#bcc9d7}
+[data-theme=dark] .subject-name{color:#e6edf5}
+[data-theme=dark] .text-link{color:#a9d8c0}
+[data-theme=dark] .row-actions .secondary{color:#bdccda}
+[data-theme=dark] .day-summary{background:#253440;border-color:#405061}
+[data-theme=dark] .chart-count,[data-theme=dark] .filter-total small,[data-theme=dark] .day-subject-card small,[data-theme=dark] .distribution small,[data-theme=dark] .time-column small,[data-theme=dark] .days{color:#adbdcd}
+[data-theme=dark] button:focus-visible,[data-theme=dark] input:focus-visible,[data-theme=dark] textarea:focus-visible,[data-theme=dark] select:focus-visible,[data-theme=dark] a:focus-visible{outline:2px solid #a7c8eb;outline-offset:3px}
+[data-theme=dark] .secondary:hover:not(:disabled){background:#3a4b5e;color:#f1f5f9;filter:none}
+[data-theme=dark] .app-tabs a.selected{background:#3f785f;color:#fff}
+[data-theme=dark] .study-status-dot{background:#b0dfc5}
