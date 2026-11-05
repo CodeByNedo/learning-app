@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
+from study_improvements import note_todo, register_study_improvements, subjects_with_tasks
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -191,7 +192,8 @@ def index():
 @app.get('/api/state')
 def state():
     with db() as connection:
-        return jsonify(subjects=[dict(r) for r in connection.execute('SELECT * FROM subjects ORDER BY id')],
+        return jsonify(subjects=subjects_with_tasks(connection),
+                       scheduled_subject_ids=[r['subject_id'] for r in connection.execute('SELECT DISTINCT e.subject_id FROM schedule_entries e JOIN schedules s ON s.id=e.schedule_id WHERE s.is_active=1')],
                        sessions=[dict(r) for r in connection.execute('SELECT * FROM sessions ORDER BY started_at DESC')],
                        timer=timer_state(connection),
                        settings=dict(connection.execute('SELECT checkpoint_minutes, theme, break_minutes FROM settings WHERE id=1').fetchone()))
@@ -282,6 +284,13 @@ def timer_action(action):
             record_timer_event(connection, {'started_at': stamp, 'elapsed_seconds': 0}, 'start', source)
         elif not current:
             return jsonify(error='No active session.'), 400
+        elif action == 'todo':
+            if current['segment_at'] is not None:
+                return jsonify(error='Pause the timer before editing next-session tasks.'), 409
+            todo = note_todo(data, '')
+            if todo is None:
+                return jsonify(error='TODO must be at most 10000 characters.'), 400
+            connection.execute('UPDATE timer SET todo_draft=? WHERE id=1', (todo,))
         elif action in ('pause', 'break'):
             timed = action == 'break' or data.get('timed_break', True)
             until = current['break_until']
@@ -308,12 +317,17 @@ def timer_action(action):
             session_note = data.get('session_note', '')
             if not isinstance(session_note, str) or len(session_note) > 100000:
                 return jsonify(error='Note text must be at most 100000 characters.'), 400
-            if session_note.strip():
+            todo = note_todo(data, session_note, current['todo_draft'])
+            if todo is None:
+                return jsonify(error='TODO must be at most 10000 characters.'), 400
+            connection.execute('UPDATE subjects SET todo_consumed_at=? WHERE id=?',
+                               (datetime.now(timezone.utc).isoformat(), current['subject_id']))
+            if session_note.strip() or todo:
                 folder_id = ensure_subject_note_folder(connection, current['subject_id'])
                 stamp = datetime.now(timezone.utc).isoformat()
-                title = next(line.strip() for line in session_note.splitlines() if line.strip())[:120]
-                connection.execute('INSERT INTO notes(subject_id,folder_id,title,body,created_at,updated_at) VALUES(?,?,?,?,?,?)',
-                                   (current['subject_id'], folder_id, title, session_note.strip(), stamp, stamp))
+                title = next((line.strip() for line in session_note.splitlines() if line.strip()), 'TODO')[:120]
+                connection.execute('INSERT INTO notes(subject_id,folder_id,title,body,created_at,updated_at,todo,todo_updated_at) VALUES(?,?,?,?,?,?,?,?)',
+                                   (current['subject_id'], folder_id, title, session_note.strip(), stamp, stamp, todo, stamp if todo else None))
             if 'next_step' in data:
                 connection.execute('UPDATE subjects SET next_step=? WHERE id=?', (str(data['next_step'])[:1000], current['subject_id']))
             connection.execute('INSERT INTO sessions(subject_id,started_at,duration_seconds) VALUES(?,?,?)',
@@ -381,6 +395,12 @@ def export_data():
                            note_folders=[dict(r) for r in connection.execute('SELECT * FROM note_folders')],
                            schedules=[dict(r) for r in connection.execute('SELECT * FROM schedules')],
                            schedule_entries=[dict(r) for r in connection.execute('SELECT * FROM schedule_entries')],
+                           schedule_overrides=[dict(r) for r in connection.execute('SELECT * FROM schedule_overrides')],
+                           practice_collections=[dict(r) for r in connection.execute('SELECT * FROM practice_collections')],
+                           practice_sources=[dict(r) for r in connection.execute('SELECT id,collection_id,name,kind,pages_json,page_count,readable_pages,created_at FROM practice_sources')],
+                           practice_rounds=[dict(r) for r in connection.execute('SELECT * FROM practice_rounds')],
+                           practice_questions=[dict(r) for r in connection.execute('SELECT * FROM practice_questions')],
+                           practice_attempts=[dict(r) for r in connection.execute('SELECT * FROM practice_attempts')],
                            timer=timer_state(connection),
                            settings=dict(connection.execute('SELECT checkpoint_minutes, theme, break_minutes FROM settings').fetchone()))
     response.headers['Content-Disposition'] = 'attachment; filename=ajde-backup.json'
@@ -461,6 +481,9 @@ def all_notes():
         folder_id = data.get('folder_id')
         title = str(data.get('title', '')).strip()
         body = str(data.get('body', ''))
+        todo = note_todo(data, body)
+        if todo is None:
+            return jsonify(error='TODO must be at most 10000 characters.'), 400
         if not title or len(title) > 160 or len(body) > 100000:
             return jsonify(error='Enter a title (up to 160 characters) and a note up to 100000 characters.'), 400
         with db() as connection:
@@ -469,8 +492,8 @@ def all_notes():
             if not folder_exists(connection, folder_id):
                 return jsonify(error='Folder not found.'), 404
             stamp = datetime.now(timezone.utc).isoformat()
-            cursor = connection.execute('INSERT INTO notes(subject_id,folder_id,title,body,created_at,updated_at) VALUES(?,?,?,?,?,?)',
-                                        (subject_id, folder_id, title, body, stamp, stamp))
+            cursor = connection.execute('INSERT INTO notes(subject_id,folder_id,title,body,created_at,updated_at,todo,todo_updated_at) VALUES(?,?,?,?,?,?,?,?)',
+                                        (subject_id, folder_id, title, body, stamp, stamp, todo, stamp if todo else None))
             return jsonify(note=dict(connection.execute('SELECT * FROM notes WHERE id=?', (cursor.lastrowid,)).fetchone()))
     try:
         page = max(1, int(request.args.get('page', 1)))
@@ -485,7 +508,9 @@ def all_notes():
             sql += ' WHERE subject_id=?'
             params.append(subject_id)
         rows = connection.execute(sql + ' ORDER BY pinned DESC, updated_at DESC, id DESC', params).fetchall()
-        matches = [dict(row) for row in rows if not query or query in row['title'].casefold() or query in row['body'].casefold()]
+        matches = [dict(row) for row in rows if not query or query in row['title'].casefold() or query in row['body'].casefold() or query in row['todo'].casefold()]
+        if request.args.get('root') == '1':
+            matches = [row for row in matches if row['folder_id'] is None]
         if request.args.get('folder_id'):
             try:
                 folder_id = int(request.args['folder_id'])
@@ -513,14 +538,17 @@ def subject_notes(subject_id):
             data = request.get_json()
             title = str(data.get('title', '')).strip()
             body = str(data.get('body', ''))
+            todo = note_todo(data, body)
+            if todo is None:
+                return jsonify(error='TODO must be at most 10000 characters.'), 400
             if not title or len(title) > 160 or len(body) > 100000:
                 return jsonify(error='Enter a title (up to 160 characters) and a note up to 100000 characters.'), 400
             stamp = datetime.now(timezone.utc).isoformat()
             folder_id = data.get('folder_id') if 'folder_id' in data else ensure_subject_note_folder(connection, subject_id)
             if not folder_exists(connection, folder_id):
                 return jsonify(error='Folder not found.'), 404
-            cursor = connection.execute('INSERT INTO notes(subject_id,title,body,created_at,updated_at,folder_id) VALUES(?,?,?,?,?,?)',
-                                        (subject_id, title, body, stamp, stamp, folder_id))
+            cursor = connection.execute('INSERT INTO notes(subject_id,title,body,created_at,updated_at,folder_id,todo,todo_updated_at) VALUES(?,?,?,?,?,?,?,?)',
+                                        (subject_id, title, body, stamp, stamp, folder_id, todo, stamp if todo else None))
             return jsonify(note=dict(connection.execute('SELECT * FROM notes WHERE id=?', (cursor.lastrowid,)).fetchone()))
         try:
             page = max(1, int(request.args.get('page', 1)))
@@ -530,7 +558,7 @@ def subject_notes(subject_id):
         # Python casefold handles Serbian Latin characters consistently with SQLite's
         # limited built-in Unicode case-insensitive search. Bodies are not returned in lists.
         rows = connection.execute('SELECT * FROM notes WHERE subject_id=? ORDER BY pinned DESC, updated_at DESC, id DESC', (subject_id,)).fetchall()
-        matches = [dict(row) for row in rows if not query or query in row['title'].casefold() or query in row['body'].casefold()]
+        matches = [dict(row) for row in rows if not query or query in row['title'].casefold() or query in row['body'].casefold() or query in row['todo'].casefold()]
         count = len(matches)
         page = min(page, max(1, (count + 19) // 20))
         notes = []
@@ -556,14 +584,17 @@ def note_detail(note_id, subject_id=None):
             data = request.get_json()
             title = str(data.get('title', row['title'])).strip()
             body = str(data.get('body', row['body']))
+            todo = note_todo(data, body, row['todo'])
+            if todo is None:
+                return jsonify(error='TODO must be at most 10000 characters.'), 400
             pinned = data.get('pinned', row['pinned'])
             folder_id = data.get('folder_id', row['folder_id'])
             if not folder_exists(connection, folder_id):
                 return jsonify(error='Folder not found.'), 404
             if not title or len(title) > 160 or len(body) > 100000 or type(pinned) not in (bool, int) or pinned not in (0, 1):
                 return jsonify(error='Enter a title (up to 160 characters) and a note up to 100000 characters.'), 400
-            connection.execute('UPDATE notes SET title=?,body=?,pinned=?,updated_at=?,folder_id=? WHERE id=?',
-                               (title, body, int(pinned), datetime.now(timezone.utc).isoformat(), folder_id, note_id))
+            connection.execute('UPDATE notes SET title=?,body=?,pinned=?,updated_at=?,folder_id=?,todo=?,todo_updated_at=? WHERE id=?',
+                               (title, body, int(pinned), datetime.now(timezone.utc).isoformat(), folder_id, todo, datetime.now(timezone.utc).isoformat() if todo != row['todo'] else row['todo_updated_at'], note_id))
             row = connection.execute('SELECT * FROM notes WHERE id=?', (note_id,)).fetchone()
         return jsonify(note=dict(row))
 
@@ -588,6 +619,12 @@ def delete_archived_subjects():
 
 from schedules import register_schedules
 register_schedules(app, db)
+
+from practice import register_practice
+register_practice(app, db)
+register_study_improvements(db)
+from schedule_overrides import register_schedule_overrides
+register_schedule_overrides(app, db)
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000)

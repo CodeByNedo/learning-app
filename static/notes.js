@@ -3,7 +3,7 @@ const noteDate = value => new Date(value).toLocaleString(locale(), {day:'numeric
 
 function noteDirty() {
  const title=$('#note-title-input'),body=$('#note-body');
- return Boolean(title && body && (title.value!==(notebook.note?.title || '') || body.value!==(notebook.note?.body || '') || ($('#note-folder-select')?.value || '')!==String(notebook.originalFolder ?? '')));
+ return Boolean(title && body && (title.value!==(notebook.note?.title || '') || body.value!==(notebook.note?.body || '') || ($('#note-todo')?.value || '')!==(notebook.note?.todo || '') || ($('#note-folder-select')?.value || '')!==String(notebook.originalFolder ?? '')));
 }
 
 function allowNoteNavigation() {
@@ -63,19 +63,19 @@ function renderNoteEditor() {
  const note=notebook.note;
  const root=notebook.subjectId?noteFolderStore.find(folder=>folder.subject_id===notebook.subjectId):null;
  notebook.originalFolder=note?note.folder_id:(notebook.folder || root?.id || '');
- $('#note-editor').innerHTML=`<form id="note-form"><div class="note-editor-toolbar"><span id="note-save-state">${t(note?'Saved':'New note')}</span>${note?`<div><button type="button" class="secondary" id="pin-note">${t(note.pinned?'Unpin':'Pin to top')}</button><button type="button" class="secondary" id="delete-note">${t('Delete')}</button></div>`:''}</div><label class="note-title-label">${t('Title')}<input id="note-title-input" maxlength="160" required placeholder="${t('Note title')}" value="${escapeHtml(note?.title || '')}"></label>${note?`<div class="note-timestamps"><span>${t('Created')}: ${noteDate(note.created_at)}</span><span>${t('Updated')}: ${noteDate(note.updated_at)}</span></div>`:''}<div class="note-folder-location-row"><span>▱ ${escapeHtml(noteFolderPath(notebook.originalFolder) || t('No folder'))}</span>${note?`<button type="button" class="secondary" id="change-note-folder">${t('Move')}</button>`:''}</div><label class="note-folder-label"><select id="note-folder-select" aria-label="${t('Folder')}" hidden><option value="">${t('No folder')}</option>${folderOptions(notebook.originalFolder)}</select></label><label class="note-body-label">${t('Note content')}<textarea id="note-body" maxlength="100000" placeholder="${t('Write your note here…')}">${escapeHtml(note?.body || '')}</textarea></label><div id="note-delete-confirm" hidden><p>${t('Delete this note permanently?')}</p><button type="button" class="danger" id="confirm-delete-note">${t('Delete')}</button><button type="button" class="secondary" id="cancel-delete-note">${t('Cancel')}</button></div><div class="note-editor-footer"><span id="note-error" role="alert"></span><button type="button" class="secondary" id="discard-note">${t('Discard changes')}</button><button id="save-note">${t('Save note')}</button></div></form>`;
- for(const selector of ['#note-title-input','#note-body','#note-folder-select'])$(selector).oninput=()=>$('#note-save-state').textContent=t(noteDirty()?'Unsaved changes':'Saved');
+ $('#note-editor').innerHTML=`<form id="note-form"><div class="note-editor-toolbar"><span id="note-save-state">${t(note?'Saved':'New note')}</span>${note?`<div><button type="button" class="secondary" id="pin-note">${t(note.pinned?'Unpin':'Pin to top')}</button><button type="button" class="secondary" id="delete-note">${t('Delete')}</button></div>`:''}</div><label class="note-title-label">${t('Title')}<input id="note-title-input" maxlength="160" required placeholder="${t('Note title')}" value="${escapeHtml(note?.title || '')}"></label>${note?`<div class="note-timestamps"><span>${t('Created')}: ${noteDate(note.created_at)}</span><span>${t('Updated')}: ${noteDate(note.updated_at)}</span></div>`:''}<div class="note-folder-location-row"><span>▱ ${escapeHtml(noteFolderPath(notebook.originalFolder) || t('No folder'))}</span>${note?`<button type="button" class="secondary" id="change-note-folder">${t('Move')}</button>`:''}</div><label class="note-folder-label"><select id="note-folder-select" aria-label="${t('Folder')}" hidden><option value="">${t('No folder')}</option>${folderOptions(notebook.originalFolder)}</select></label><label class="note-body-label">${t('Note content')}<textarea id="note-body" maxlength="100000" placeholder="${t('Write your note here…')}">${escapeHtml(note?.body || '')}</textarea></label><label class="note-todo-label">TODO · ${t('Next study tasks')}<textarea id="note-todo" maxlength="10000" rows="4" placeholder="${t('One task per line. Only the latest TODO for this subject appears when studying.')}">${escapeHtml(note?.todo || '')}</textarea></label><div class="note-editor-footer"><span id="note-error" role="alert"></span><button type="button" class="secondary" id="discard-note">${t('Discard changes')}</button><button id="save-note">${t('Save note')}</button></div></form>`;
+ for(const selector of ['#note-title-input','#note-body','#note-folder-select','#note-todo'])$(selector).oninput=()=>$('#note-save-state').textContent=t(noteDirty()?'Unsaved changes':'Saved');
  if($('#change-note-folder'))$('#change-note-folder').onclick=()=>{$('#note-folder-select').hidden=false;$('#change-note-folder').hidden=true;};
  $('#discard-note').onclick=()=>{if(!notebook.saving)renderNoteEditor();};
  $('#note-form').onsubmit=async event=>{
   event.preventDefault();if(notebook.saving)return;
   notebook.saving=true;$('#save-note').disabled=true;
   try {
-   const data={title:$('#note-title-input').value,body:$('#note-body').value};
+   const data={title:$('#note-title-input').value,body:$('#note-body').value,todo:$('#note-todo').value};
    const folder=$('#note-folder-select').value;
    if(folder || note)data.folder_id=folder?Number(folder):null;
    const result=await api(noteEndpoint(note?.id),note?'PATCH':'POST',data);
-   notebook.note=result.note;notebook.page=1;renderNoteEditor();$('#notes-dialog').close();toast(t('Note saved.'));
+   notebook.note=result.note;notebook.page=1;renderNoteEditor();$('#notes-dialog').close();toast(t('Note saved.'));await refresh();
    if(currentPage()==='notes'){await refreshFolderTree();await loadGlobalNotes();}
   }catch(error){$('#note-error').textContent=error.message;$('#save-note').disabled=false;}
   finally{notebook.saving=false;}
@@ -86,15 +86,27 @@ function renderNoteEditor() {
    try {const result=await api(noteEndpoint(note.id),'PATCH',{pinned:!note.pinned});notebook.note=result.note;renderNoteEditor();await loadNotes();}
    catch(error){toast(error.message);}
   };
-  $('#delete-note').onclick=()=>{if(allowNoteNavigation())$('#note-delete-confirm').hidden=false;};
-  $('#cancel-delete-note').onclick=()=>$('#note-delete-confirm').hidden=true;
-  $('#confirm-delete-note').onclick=async()=>{
-   if(notebook.saving)return;notebook.saving=true;$('#confirm-delete-note').disabled=true;
-   try {await api(noteEndpoint(note.id),'DELETE');notebook.note=null;await fetchNoteFolders();renderNoteEditor();await loadNotes();if(currentPage()==='notes')refreshFolderTree();toast(t('Note deleted.'));}
-   catch(error){$('#note-error').textContent=error.message;$('#confirm-delete-note').disabled=false;}
-   finally{notebook.saving=false;}
-  };
+  $('#delete-note').onclick=()=>{if(allowNoteNavigation())confirmNoteDelete(note);};
  }
+}
+
+function confirmNoteDelete(note){
+ const endpoint=noteEndpoint(note.id),dialog=document.createElement('dialog');
+ dialog.className='note-delete-dialog';dialog.setAttribute('aria-labelledby','note-delete-heading');
+ dialog.innerHTML=`<form><p class="eyebrow">${t('Notes')}</p><h2 id="note-delete-heading">${t('Delete this note permanently?')}</h2><p class="note-delete-name">${escapeHtml(note.title)}</p><p class="muted">${t('This also deletes the TODO stored in this note.')}</p><p class="note-delete-error" role="alert"></p><div class="actions"><button type="button" class="secondary" autofocus>${t('Cancel')}</button><button type="submit" class="danger">${t('Delete')}</button></div></form>`;
+ document.body.append(dialog);let deleting=false;
+ const cancel=dialog.querySelector('[type=button]'),submit=dialog.querySelector('[type=submit]');
+ dialog.addEventListener('close',()=>dialog.remove());dialog.addEventListener('cancel',event=>{if(deleting)event.preventDefault();});
+ cancel.onclick=()=>dialog.close();
+ dialog.querySelector('form').onsubmit=async event=>{
+  event.preventDefault();if(deleting)return;deleting=true;notebook.saving=true;cancel.disabled=true;submit.disabled=true;
+  try{
+   await api(endpoint,'DELETE');dialog.close();notebook.note=null;await fetchNoteFolders();renderNoteEditor();await loadNotes();await refresh();
+   if(currentPage()==='notes')await refreshFolderTree();toast(t('Note deleted.'));
+  }catch(error){if(dialog.isConnected)dialog.querySelector('[role=alert]').textContent=error.message;else toast(error.message);}
+  finally{deleting=false;notebook.saving=false;cancel.disabled=false;submit.disabled=false;}
+ };
+ dialog.showModal();cancel.focus();
 }
 
 document.addEventListener('click',event=>{

@@ -1,3 +1,4 @@
+from schedule_overrides import effective_entries, week_key
 """Named, recurring weekly timetables for existing subjects."""
 from datetime import datetime, timezone
 from flask import jsonify, request
@@ -68,8 +69,12 @@ def register_schedules(app, db):
             if not row:
                 return jsonify(error='Schedule not found.'), 404
             if request.method == 'GET':
-                return jsonify(schedule=dict(row), entries=[dict(item) for item in connection.execute(
-                    'SELECT * FROM schedule_entries WHERE schedule_id=? ORDER BY weekday,start_minute,id', (schedule_id,))])
+                week_start = request.args.get('week_start')
+                if week_start and not week_key(week_start):
+                    return jsonify(error='Choose a valid week starting on Monday.'), 400
+                entries = effective_entries(connection, schedule_id, week_start) if week_start else [dict(item) for item in connection.execute(
+                    'SELECT * FROM schedule_entries WHERE schedule_id=? ORDER BY weekday,start_minute,id', (schedule_id,))]
+                return jsonify(schedule=dict(row), entries=entries)
             data = request.get_json(silent=True) or {}
             if request.method == 'DELETE':
                 if data.get('confirm') is not True:

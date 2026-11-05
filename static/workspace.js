@@ -1,6 +1,6 @@
 let overviewWeekOffset = 0;
 let historySubject = '', historyFrom = '', historyTo = '';
-const currentPage = () => ['home','subjects','schedule','notes','history','settings','study'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
+const currentPage = () => ['home','subjects','schedule','practice','notes','history','settings','study'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
 const totalTime = rows => rows.reduce((sum, row) => sum + row.duration_seconds, 0);
 const subjectName = id => state.subjects.find(subject => subject.id === id)?.name || '';
 
@@ -14,14 +14,14 @@ function renderWorkspace() {
   link.classList.toggle('selected', link.dataset.page === page);
   if(link.dataset.page === page) link.setAttribute('aria-current','page'); else link.removeAttribute('aria-current');
  });
- for (const name of ['home','subjects','schedule','notes','history','settings','study']) $('#page-'+name).hidden = page !== name;
+ for (const name of ['home','subjects','schedule','practice','notes','history','settings','study']) $('#page-'+name).hidden = page !== name;
  $('#add').hidden = page !== 'subjects';
- const titles = {home:'Your study overview',subjects:'Your subjects',history:'Session history',settings:'Settings',notes:'Notes',schedule:'Schedule',study:'Study'};
+ const titles = {home:'Your study overview',subjects:'Your subjects',history:'Session history',settings:'Settings',notes:'Notes',schedule:'Schedule',practice:'Practice',study:'Study'};
  document.querySelector('header h1').textContent = t(titles[page]);
  const studying = page === 'study';
  document.body.classList.toggle('study-mode', studying);
  document.querySelector('header').hidden = studying;
- document.querySelector('.stats').hidden = studying || page==='schedule';
+ document.querySelector('.stats').hidden = studying || page==='schedule' || page==='practice';
  document.querySelector('.app-tabs').hidden = studying;
  document.querySelector('footer').hidden = studying;
  renderStudy();
@@ -29,7 +29,18 @@ function renderWorkspace() {
  renderHistory();
  renderSettings();
  if(page==='notes' && typeof renderGlobalNotes==='function')renderGlobalNotes();
+ if(page==='practice' && typeof renderPractice==='function')renderPractice();
  if(page==='schedule' && typeof renderSchedule==='function')renderSchedule();
+}
+
+function homeTodoCards(){
+ const recent=new Map();state.sessions.forEach(session=>{const time=new Date(session.started_at).getTime();recent.set(session.subject_id,Math.max(recent.get(session.subject_id)||0,time));});
+ const subjects=state.subjects.filter(subject=>!subject.archived&&subject.latest_todo?.trim()).sort((a,b)=>(recent.get(b.id)||0)-(recent.get(a.id)||0)||a.name.localeCompare(b.name,locale()));
+ return `<section class="home-continuation" aria-label="${t('Where you left off')}"><div class="continuation-heading"><div><span class="eyebrow">${t('YOUR NEXT STEP')}</span><h3>${t('Where you left off')}</h3></div>${subjects.length?`<span class="continuation-count">${subjects.length}</span>`:''}</div>${subjects.length?`<div class="continuation-cards">${subjects.map(subject=>{
+  const tasks=subject.latest_todo.split('\n').map(line=>line.replace(/^\s*(?:[-*•]\s*|\[ \]\s*)/,'').trim()).filter(Boolean);
+  const color=/^#[0-9a-f]{6}$/i.test(subject.color||'')?subject.color:'#6b9679';
+  return `<article class="continuation-card" style="--task-color:${color}"><div class="continuation-subject">${subjectIcon(subject.id)}<h4>${escapeHtml(subject.name)}</h4></div><ul>${tasks.map(task=>`<li>${escapeHtml(task)}</li>`).join('')}</ul><div class="continuation-actions"><button type="button" class="text-link" data-notes="${subject.id}">▤ ${t('Notes')}</button>${state.timer?.subject_id===subject.id?`<a class="continuation-start" href="#study">${t('Return to study')} →</a>`:`<button type="button" class="continuation-start" data-start="${subject.id}" ${state.timer?'disabled':''}>${t('Continue learning')} <span aria-hidden="true">→</span></button>`}</div></article>`;
+ }).join('')}</div>`:`<div class="continuation-empty"><span aria-hidden="true">✓</span><p>${t('No tasks to resume. Choose a subject and start.')}</p></div>`}</section>`;
 }
 
 function renderHome() {
@@ -51,8 +62,11 @@ function renderHome() {
   const days = Math.max(0,Math.round((calendarDay-lastCalendarDay)/86400000));
   lastLabel = days===0?t('Today'):days===1?t('Yesterday'):language==='sr'?`Prije ${days} dana`:`${days} days ago`;
  }
- const amounts = state.subjects.map(subject=>({subject,seconds:totalTime(state.sessions.filter(session=>session.subject_id===subject.id && new Date(session.started_at)>=week && new Date(session.started_at)<weekEnd))})).filter(item=>item.seconds>0).sort((a,b)=>b.seconds-a.seconds);
- $('#page-home').innerHTML = `<div class="home-layout overview-layout"><section class="panel activity-panel"><div class="section-title"><div><p class="eyebrow">${t('YOUR RHYTHM')}</p><h2>${t(overviewWeekOffset===0?'This week':'Study week')}</h2><p class="week-range">${rangeLabel}</p></div><span class="activity-count">${studiedDays} / 7 <span>${t('study days')}</span></span></div><div class="week-navigation"><button class="secondary" data-week-shift="-1" aria-label="${t('Previous week')}">← ${t('Previous week')}</button>${overviewWeekOffset!==0?`<button class="secondary" data-current-week>${t('This week')}</button>`:''}<button class="secondary" data-week-shift="1" ${overviewWeekOffset===0?'disabled':''} aria-label="${t('Next week')}">${t('Next week')} →</button></div><p class="chart-hint">${t('Select a day to see its details.')}</p><div class="weekly-chart" role="group" aria-label="${t('Study time by day')}">${dates.map((day,index)=>`<button type="button" data-study-day="${index}" class="chart-day ${dayKey(day)===dayKey(today)?'is-today':''}" ${day>today?'disabled':''} aria-label="${escapeHtml(day.toLocaleDateString(locale(),{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}: ${duration(totals[index])}"><span class="chart-value">${duration(totals[index])}</span><span class="chart-column"><i style="height:${totals[index]?Math.max(3,totals[index]/maxDay*100):0}%"></i></span><span class="chart-label">${escapeHtml(day.toLocaleDateString(locale(),{weekday:'short'}))}</span><span class="chart-date">${day.getDate()}.${day.getMonth()+1}.</span></button>`).join('')}</div><div class="last-study"><span class="last-study-dot"></span><div><small>${t('Last study')}</small><strong>${lastLabel}</strong></div>${last?`<span class="last-study-subject">${escapeHtml(subjectName(last.subject_id))}</span>`:''}</div></section><section class="panel subject-distribution"><h2>${t(overviewWeekOffset===0?'This week by subject':'Selected week by subject')}</h2>${amounts.map(({subject,seconds})=>`<div class="distribution"><div><span class="subject-with-icon">${subjectIcon(subject.id)}<span>${escapeHtml(subject.name)}</span></span><b>${duration(seconds)}</b></div></div>`).join('')||`<div class="chart-empty"><p>${t('No study time in this week.')}</p><span>${t('Your activity will appear here after a saved session.')}</span></div>`}</section></div><section class="panel recent-panel"><div class="section-title"><h2>${t('Recent sessions')}</h2><a class="text-link" href="#history">${t('History')} →</a></div>${sessionRows(state.sessions.slice(0,3), false)}</section>`;
+ const scheduled=new Set(state.scheduled_subject_ids||[]);
+ const amounts=state.subjects.filter(subject=>scheduled.has(subject.id)).map(subject=>({subject,seconds:totalTime(state.sessions.filter(session=>session.subject_id===subject.id))})).sort((a,b)=>b.seconds-a.seconds||a.subject.name.localeCompare(b.subject.name,locale()));
+ const maxSubject=Math.max(...amounts.map(item=>item.seconds),1);
+ const insights=homeTodoCards();
+ $('#page-home').innerHTML = `<div class="home-layout overview-layout"><section class="panel activity-panel"><div class="section-title"><div><p class="eyebrow">${t('YOUR RHYTHM')}</p><h2>${t(overviewWeekOffset===0?'This week':'Study week')}</h2><p class="week-range">${rangeLabel}</p></div><span class="activity-count">${studiedDays} / 7 <span>${t('study days')}</span></span></div><div class="week-navigation"><button class="secondary" data-week-shift="-1" aria-label="${t('Previous week')}">← ${t('Previous week')}</button>${overviewWeekOffset!==0?`<button class="secondary" data-current-week>${t('This week')}</button>`:''}<button class="secondary" data-week-shift="1" ${overviewWeekOffset===0?'disabled':''} aria-label="${t('Next week')}">${t('Next week')} →</button></div><p class="chart-hint">${t('Select a day to see its details.')}</p><div class="weekly-chart" role="group" aria-label="${t('Study time by day')}">${dates.map((day,index)=>`<button type="button" data-study-day="${index}" class="chart-day ${dayKey(day)===dayKey(today)?'is-today':''}" ${day>today?'disabled':''} aria-label="${escapeHtml(day.toLocaleDateString(locale(),{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}: ${duration(totals[index])}"><span class="chart-value">${duration(totals[index])}</span><span class="chart-column"><i style="height:${totals[index]?Math.max(3,totals[index]/maxDay*100):0}%"></i></span><span class="chart-label">${escapeHtml(day.toLocaleDateString(locale(),{weekday:'short'}))}</span><span class="chart-date">${day.getDate()}.${day.getMonth()+1}.</span></button>`).join('')}</div><div class="last-study"><span class="last-study-dot"></span><div><small>${t('Last study')}</small><strong>${lastLabel}</strong></div>${last?`<span class="last-study-subject">${escapeHtml(subjectName(last.subject_id))}</span>`:''}</div>${insights}</section><section class="panel subject-distribution"><h2>${t('Total study time by subject')}</h2>${amounts.map(({subject,seconds})=>`<div class="distribution"><div><span class="subject-with-icon">${subjectIcon(subject.id)}<span>${escapeHtml(subject.name)}</span></span><b>${duration(seconds)}</b></div><div class="subject-study-bar"><i style="width:${seconds?Math.max(.7,seconds/maxSubject*100):0}%;--bar-color:${/^#[0-9a-f]{6}$/i.test(subject.color)?subject.color:'#6b9679'}"></i></div><button class="text-link quick-subject-start" data-start="${subject.id}" ${subject.archived||state.timer?'disabled':''}>▶ ${t('Start studying')}</button></div>`).join('')||`<div class="chart-empty"><p>${t('No subjects in the default schedule yet.')}</p><span>${t('Add subjects to a schedule to see their total study time here.')}</span></div>`}</section></div><section class="panel recent-panel"><div class="section-title"><h2>${t('Recent sessions')}</h2><a class="text-link" href="#history">${t('History')} →</a></div>${sessionRows(state.sessions.slice(0,3), false)}</section>`;
 }
 
 function renderHistory() {
@@ -113,10 +127,12 @@ setInterval(async () => {
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh().catch(error=>toast(error.message));});
 
 let finishingStudy = false;
+function studyTodoHTML(subject){return `<aside class="study-todo"><strong>TODO · ${t('Continue with these tasks')}</strong><ul>${subject.latest_todo.split('\n').map(line=>line.replace(/^\s*[-*•]\s*|^\s*\[ \]\s*/g,'').trim()).filter(Boolean).map(line=>`<li>${escapeHtml(line)}</li>`).join('')}</ul><button type="button" class="text-link" data-notes="${subject.id}">${t('Notes')} →</button></aside>`;}
 function renderStudy() {
  const banner = $('#study-banner');
  banner.hidden = !state.timer || currentPage() === 'study';
- banner.innerHTML = state.timer ? `<div class="study-banner-info"><span class="study-status-dot ${state.timer.segment_at===null?'paused':''}"></span><div><strong>${t(state.timer.break_until?'Break in progress':state.timer.segment_at===null?'Paused — ready to continue?':'Session in progress')}</strong><span>${escapeHtml(subjectName(state.timer.subject_id))}</span></div></div><strong id="banner-clock" class="banner-clock"></strong><a class="button-link" href="#study">${t('Return to study')} →</a>` : '';
+ banner.classList.toggle('is-paused',Boolean(state.timer&&state.timer.segment_at===null));
+ banner.innerHTML = state.timer ? `<div class="study-banner-info"><span class="study-status-dot ${state.timer.segment_at===null?'paused':''}"></span><div><strong>${t(state.timer.break_until?'Break in progress':state.timer.segment_at===null?'Paused — ready to continue?':'Session in progress')}</strong><span>${escapeHtml(subjectName(state.timer.subject_id))}</span></div></div><strong id="banner-clock" class="banner-clock"></strong><a class="button-link" href="#study">${t(state.timer.segment_at===null?'View break':'Return to study')} →</a>` : '';
  tick();
  const active = $('#active'), finish = $('#study-finish');
  active.hidden = !state.timer || finishingStudy;
@@ -131,20 +147,22 @@ function renderStudy() {
  }
  const subject = state.subjects.find(item => item.id === state.timer.subject_id);
  if (!finishingStudy) {
-  active.querySelectorAll('.focus-back, .focus-caption, .focus-checkpoint').forEach(element=>element.remove());
+  active.querySelectorAll('.focus-back, .focus-caption, .focus-checkpoint, .study-todo').forEach(element=>element.remove());
   active.insertAdjacentHTML('afterbegin', `<a class="focus-back text-link" href="#home">← ${t('Back to overview')}</a>`);
+  if(subject.latest_todo)active.insertAdjacentHTML('afterbegin',studyTodoHTML(subject));
   active.insertAdjacentHTML('beforeend', `<p class="focus-caption">${t(state.timer.segment_at === null ? 'A break is part of learning. Continue when you are ready.' : 'Only active study time is counted.')}</p><p class="focus-checkpoint">${state.settings.checkpoint_minutes ? `${t('Automatic pause after')} ${state.settings.checkpoint_minutes} ${t('minutes')}` : t('Timer check is off. Remember to stop your session.')}</p>`);
   return;
  }
  const draft = $('#finish-note')?.value ?? '';
- finish.innerHTML = `<div class="finish-card"><p class="eyebrow">${t('A good step forward.')}</p><h1>${escapeHtml(subject.name)}</h1><p class="muted">${t('Time studied')}</p><strong class="finish-duration">${duration(state.timer.seconds)}</strong><p class="muted">${t('Your timer is paused while you wrap up.')}</p><form id="finish-form"><label>${t('Anything you want to note after studying?')} <span class="muted">${t('(optional)')}</span><textarea id="finish-note" maxlength="100000" rows="3" placeholder="${t('Optional. Anything you write is saved as a note for this subject.')}">${escapeHtml(draft)}</textarea></label><div class="finish-actions"><button id="finish-submit">${t('Save and go home')}</button><button type="button" class="secondary" id="keep-studying">${t('Keep studying')}</button></div></form></div>`;
+ const todoDraft=$('#finish-todo')?.value ?? state.timer.todo_draft ?? '';
+ finish.innerHTML = `<div class="finish-card"><p class="eyebrow">${t('A good step forward.')}</p><h1>${escapeHtml(subject.name)}</h1><p class="muted">${t('Time studied')}</p><strong class="finish-duration">${duration(state.timer.seconds)}</strong><p class="muted">${t('Your timer is paused while you wrap up.')}</p><form id="finish-form"><label>${t('Anything you want to note after studying?')} <span class="muted">${t('(optional)')}</span><textarea id="finish-note" maxlength="100000" rows="3" placeholder="${t('Optional. Anything you write is saved as a note for this subject.')}">${escapeHtml(draft)}</textarea></label><label class="note-todo-label">TODO · ${t('Next study tasks')}<textarea id="finish-todo" maxlength="10000" rows="3" placeholder="${t('One task per line. Only the latest TODO for this subject appears when studying.')}">${escapeHtml(todoDraft)}</textarea></label><div class="finish-actions"><button id="finish-submit">${t('Save and go home')}</button><button type="button" class="secondary" id="keep-studying">${t('Keep studying')}</button></div></form></div>`;
  $('#keep-studying').onclick = async () => {
   try { await api('timer/resume','POST',{}); finishingStudy=false; finish.innerHTML=''; await refresh(); } catch(error){toast(error.message);}
  };
  $('#finish-form').onsubmit = async event => {
   event.preventDefault();const submit=$('#finish-submit');submit.disabled=true;
   try {
-   await api('timer/finish','POST',{session_note:$('#finish-note').value});
+   await api('timer/finish','POST',{session_note:$('#finish-note').value,todo:$('#finish-todo').value});
    finishingStudy=false;finish.innerHTML='';location.hash='home';await refresh();toast(t('Session saved.'));
   } catch(error){submit.disabled=false;toast(error.message);}
  };

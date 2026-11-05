@@ -65,7 +65,7 @@ This is a local single-user app, not a hosted service. It has no login or separa
 Run the checks after installing the desktop dependencies:
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest -q test_app test_desktop_timer
+.\.venv\Scripts\python.exe -m unittest -q test_app test_desktop_timer test_practice test_study_improvements
 ```
 
 Tests use temporary databases and do not alter your personal records.
@@ -73,3 +73,28 @@ Tests use temporary databases and do not alter your personal records.
 ## Versions
 
 The first snapshot is tagged **v0.1.0**. Commits retain the source history; tags mark versions you can find again. Keep a database backup too: switching source versions does not restore old data.
+
+
+## Study shortcuts and next-session tasks
+
+Use **Study** in the header (or **Alt+S**) to search subjects and start a session. If a timer already exists, this opens the current session. The home chart includes every subject in the default timetable, including zero-study subjects, and uses bars to compare all-time saved study time, independently of the selected activity week.
+
+Notes have a separate **TODO** field: write multiple tasks, one per line. Only the most recently changed TODO for that subject appears on the study screen. Ordinary note changes do not replace it. Clearing the latest TODO hides it without bringing back older tasks. Finishing a study session consumes previously assigned tasks: if you leave the final TODO blank, they will not appear next session. Historical note contents are preserved. During a pause, use Notes to edit the current subject TODO; there is no separate pause-only TODO editor. The session finish screen also offers separate note and TODO fields. Existing `TODO:` blocks in notes are recognized during migration; a blank line ends the block.
+
+Root-level notes stay in **Global notes** below the folder tree even while viewing a folder. A paused timer has a distinct banner color and a **View break** link.
+
+## Temporary timetable changes
+
+Use the week arrows to choose a week, open an existing class, then choose **Only this week** when changing its day, time or room. The replacement is marked **Temporary**; the recurring class remains unchanged in other weeks. **Restore regular class** removes that week's exception. **Every week** edits the recurring timetable. Adding new classes still adds recurring classes.
+
+## PDF practice (first version)
+
+**Practice** supports subject collections containing multiple text PDFs, saved open-ended questions, written answers, approximate concept-coverage feedback, source quotes/page links, and one answer-based follow-up question. Saved questions and all attempts stay in SQLite. Retrying a saved question does not regenerate it. AI feedback is an estimate and should be checked against the source.
+
+Copy `.env.example` to `.env`, add your own `OPENAI_API_KEY`, and optionally change `OPENAI_MODEL` (default `gpt-4.1-mini`). The key stays on the server and is never returned to the browser or JSON export. No API request is made just by uploading a PDF. Generation sends selected extracted text to OpenAI; grading sends the answer and cited source pages. API usage can incur charges. Without a key, PDF upload and collection management work, but generation and grading are unavailable.
+
+Limits: 10 PDFs / 20 MB per upload, 300 pages per PDF, 1–10 questions per round and 100,000 extracted characters per generation request. Larger selections must be split into smaller groups. Scanned PDFs need OCR beforehand; OCR, voice answers and multiple-choice questions are not included yet. Blank pages are reported in the readable-page count. AI citations are checked against extracted source text before saving, but this does not guarantee that the generated explanation is correct.
+
+Original PDFs are saved in SQLite, so a stopped-app database backup includes them. JSON export contains the extracted source text and practice records, but not original PDF bytes; it is not a full backup. Automated AI tests use mocked service responses; a real generation/assessment needs a configured API key and has not been verified in this workspace.
+
+The home screen also shows **Where you left off**: active subjects with current TODO tasks, ordered by most recent study. Each card opens notes or starts the subject timer. Subjects without tasks are omitted; if none have tasks, a compact empty message is shown. These are current tasks even when browsing an older activity week.
