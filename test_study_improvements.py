@@ -148,3 +148,33 @@ class ImprovementsTests(unittest.TestCase):
         self.client.put(f"/api/schedules/{schedule}/entries/{entry['id']}/overrides/2026-11-09", json={'weekday': 0, 'start_minute': 960, 'end_minute': 1050})
         exported = self.client.get('/api/export').json
         self.assertTrue(any(row['entry_id'] == entry['id'] for row in exported['schedule_overrides']))
+
+
+class CalendarCommentTests(unittest.TestCase):
+    setUp = ImprovementsTests.setUp
+    tearDown = ImprovementsTests.tearDown
+    # Reuse the isolated database setup without repeating inherited checks.
+    def test_comments_are_date_scoped_and_multiple_are_preserved(self):
+        first=self.client.post('/api/calendar-comments',json={'comment_date':'2026-11-12','body':'Consultation at 16:00'})
+        self.assertEqual(first.status_code,200)
+        self.client.post('/api/calendar-comments',json={'comment_date':'2026-11-12','body':'Bring project'})
+        self.client.post('/api/calendar-comments',json={'comment_date':'2026-11-15','body':'Sunday reminder'})
+        rows=self.client.get('/api/calendar-comments?week_start=2026-11-09').json['comments']
+        self.assertEqual(len(rows),3)
+        self.assertEqual(self.client.get('/api/calendar-comments?week_start=2026-11-16').json['comments'],[])
+        self.assertEqual(self.client.get('/api/calendar-comments?week_start=2026-11-02').json['comments'],[])
+        comment_id=first.json['comment']['id']
+        changed=self.client.patch(f'/api/calendar-comments/{comment_id}',json={'comment_date':'2026-11-19','body':'Moved consultation'})
+        self.assertEqual(changed.status_code,200)
+        self.assertEqual(len(self.client.get('/api/calendar-comments?week_start=2026-11-09').json['comments']),2)
+        self.assertEqual(self.client.delete(f'/api/calendar-comments/{comment_id}',json={}).status_code,400)
+        self.assertEqual(self.client.delete(f'/api/calendar-comments/{comment_id}',json={'confirm':True}).status_code,200)
+        self.assertEqual(self.client.patch(f'/api/calendar-comments/{comment_id}',json={'body':'missing'}).status_code,404)
+
+    def test_invalid_dates_blank_comments_and_export(self):
+        for value in [{'comment_date':'2026-02-30','body':'Test'},{'comment_date':'2026-11-12','body':'  '},{'comment_date':'2026-11-12','body':'x'*5001}]:
+            self.assertEqual(self.client.post('/api/calendar-comments',json=value).status_code,400)
+        self.assertEqual(self.client.get('/api/calendar-comments?week_start=2026-11-10').status_code,400)
+        comment=self.client.post('/api/calendar-comments',json={'comment_date':'2026-11-14','body':'Weekend comment'}).json['comment']
+        exported=self.client.get('/api/export').json['calendar_comments']
+        self.assertTrue(any(row['id']==comment['id'] and row['body']=='Weekend comment' for row in exported))

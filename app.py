@@ -396,6 +396,7 @@ def export_data():
                            schedules=[dict(r) for r in connection.execute('SELECT * FROM schedules')],
                            schedule_entries=[dict(r) for r in connection.execute('SELECT * FROM schedule_entries')],
                            schedule_overrides=[dict(r) for r in connection.execute('SELECT * FROM schedule_overrides')],
+                           calendar_comments=[dict(r) for r in connection.execute('SELECT * FROM calendar_comments')],
                            practice_collections=[dict(r) for r in connection.execute('SELECT * FROM practice_collections')],
                            practice_sources=[dict(r) for r in connection.execute('SELECT id,collection_id,name,kind,pages_json,page_count,readable_pages,created_at FROM practice_sources')],
                            practice_rounds=[dict(r) for r in connection.execute('SELECT * FROM practice_rounds')],
@@ -625,6 +626,8 @@ register_practice(app, db)
 register_study_improvements(db)
 from schedule_overrides import register_schedule_overrides
 register_schedule_overrides(app, db)
+from calendar_comments import register_calendar_comments
+register_calendar_comments(app, db)
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000)

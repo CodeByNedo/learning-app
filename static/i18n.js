@@ -53,3 +53,5 @@ Object.assign(translations, {"Where you left off": "Gdje si stao?", "YOUR NEXT S
 Object.assign(translations, {'Total study time by subject':'Ukupno učenje po predmetima','Add subjects to a schedule to see their total study time here.':'Dodaj predmete u glavni raspored za prikaz ukupnog vremena učenja.'});
 
 Object.assign(translations, {'This also deletes the TODO stored in this note.':'Ovo briše i TODO upisan u toj bilješci.'});
+
+Object.assign(translations, {"Calendar": "Kalendar", "Comment": "Komentar", "Comments": "Komentari", "Add comment": "Dodaj komentar", "Edit comment": "Uredi komentar", "Date": "Datum", "e.g. Bring the project, consultation, no classes…": "npr. Ponijeti projekat, konsultacije, nema nastave…", "Delete this comment?": "Obrisati ovaj komentar?", "Comment not found.": "Komentar nije pronađen.", "Confirm comment deletion first.": "Prvo potvrdi brisanje komentara.", "Enter a date and a comment (up to 5000 characters).": "Unesi ispravan datum i komentar (do 5000 znakova)."});
